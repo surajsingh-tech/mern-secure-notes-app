@@ -34,20 +34,27 @@ export const registerUser = async (req, res) => {
       expiresIn: "10m",
     });
 
-    sendVerificationEmail(token, email);
+    await sendVerificationEmail(token, email);
 
     newUser.token = token;
 
     await newUser.save();
+
+    const userResponse = {
+      id: newUser._id,
+      username: newUser.username,
+      email: newUser.email,
+    };
+
     return res.status(201).json({
       success: true,
       message: "User register successfully",
-      user: newUser,
+      user: userResponse,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
@@ -105,14 +112,15 @@ export const verifyEmailToken = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
 
 export const loginUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const email = req.body.email?.trim().toLowerCase();
+    const password = req.body.password?.trim();
 
     if (!email || !password) {
       return res.status(400).json({
@@ -121,7 +129,14 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    const user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Please Fill all fields",
+      });
+    }
+
+    const user = await User.findOne({ email }).select('+password')
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -178,7 +193,7 @@ export const loginUser = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
@@ -197,7 +212,7 @@ export const logoutUser = async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
@@ -227,7 +242,7 @@ export const forgetPassword = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
     });
   }
 };
@@ -283,7 +298,49 @@ export const verifyOTP = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Internal server error",
+    });
+  }
+};
+
+export const changePassword = async (req, res) => {
+  try {
+    const newPassword = req.body.newPassword?.trim();
+    const confirmPassword = req.body.confirmPassword?.trim();
+
+    const userId = req.userId;
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All Fields are required",
+      });
+    }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not Found",
+      });
+    }
+
+    const hashPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashPassword;
+    await user.save();
+    return res.status(200).json({
+      success: true,
+      message: "Password Successfully Changed",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
     });
   }
 };
