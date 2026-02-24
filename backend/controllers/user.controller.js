@@ -217,7 +217,7 @@ export const logoutUser = async (req, res) => {
   }
 };
 
-export const forgetPassword = async (req, res) => {
+export const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const user = await User.findOne({ email });
@@ -229,7 +229,7 @@ export const forgetPassword = async (req, res) => {
       });
     }
     const OTP = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 10000);
+    const expiry = new Date(Date.now() + 10 * 60 * 1000);
 
     ((user.otp = OTP), (user.otpExpiry = expiry), await user.save());
 
@@ -289,6 +289,7 @@ export const verifyOTP = async (req, res) => {
 
     user.otp = null;
     user.otpExpiry = null;
+    user.isOtpVerified=true;
     await user.save();
 
     return res.status(200).json({
@@ -303,44 +304,44 @@ export const verifyOTP = async (req, res) => {
   }
 };
 
+
 export const changePassword = async (req, res) => {
   try {
-    const newPassword = req.body.newPassword?.trim();
-    const confirmPassword = req.body.confirmPassword?.trim();
+    const { email } = req.params;
+    const { newPassword, confirmPassword } = req.body;
 
-    const userId = req.userId;
-    if (!newPassword || !confirmPassword) {
-      return res.status(400).json({
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    if (!user.isOtpVerified) {
+      return res.status(403).json({
         success: false,
-        message: "All Fields are required",
+        message: "OTP verification required"
       });
     }
+
     if (newPassword !== confirmPassword) {
       return res.status(400).json({
         success: false,
-        message: "Passwords do not match",
+        message: "Passwords do not match"
       });
     }
 
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not Found",
-      });
-    }
-
-    const hashPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashPassword;
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.isOtpVerified = false; 
     await user.save();
+
     return res.status(200).json({
       success: true,
-      message: "Password Successfully Changed",
+      message: "Password successfully changed"
     });
+
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: "Internal server error"
     });
   }
 };

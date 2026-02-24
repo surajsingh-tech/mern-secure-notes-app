@@ -16,13 +16,21 @@ export const userSchema = yup.object({
     .required("Password is required"),
 });
 
+
 export const validateUser = (schema) => async (req, res, next) => {
   try {
     // abortEarly: false => collect all validation errors instead of stopping at the first one
     const value = await schema.validate(req.body, { abortEarly: false });
     req.body = value;
     next();
-  } catch (errors) {
-    return res.status(400).json({ errors });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Validation failed",
+      errors: error.inner.map(err => ({
+        field: err.path,
+        message: err.message
+      }))
+    });
   }
 };
